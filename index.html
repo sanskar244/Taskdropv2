@@ -1166,21 +1166,138 @@
     document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
   }
 </script>
-   <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+ <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    appId: "YOUR_APP_ID"
-  };
+/* ================= FIREBASE CONFIG ================= */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  appId: "YOUR_APP_ID"
+};
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 
-  console.log("Firebase connected");
+/* ================= TASKS (UNCHANGED) ================= */
+const tasks = [
+  { id:1, category:'design', catLabel:'Design', title:'Logo for a local tea shop', desc:'Need a simple logo', budget:45, applicants:3, deadline:'2 days' },
+  { id:2, category:'tech', catLabel:'Tech', title:'Fix WordPress site bugs', desc:'Contact form broken', budget:80, applicants:7, deadline:'1 day' },
+  { id:3, category:'writing', catLabel:'Writing', title:'Write Instagram captions', desc:'Fashion brand captions', budget:25, applicants:12, deadline:'3 days' },
+];
+
+window.renderTasks = function(filter='all') {
+  const grid = document.getElementById("tasksGrid");
+  const filtered = filter === "all" ? tasks : tasks.filter(t => t.category === filter);
+
+  grid.innerHTML = filtered.map(t => `
+    <div class="task-card">
+      <div class="task-top">
+        <span class="task-category">${t.catLabel}</span>
+        <span class="task-budget">$${t.budget}</span>
+      </div>
+      <div class="task-title">${t.title}</div>
+      <div class="task-desc">${t.desc}</div>
+      <div class="task-footer">
+        <div class="task-meta">
+          <span>🙋 ${t.applicants} applied</span>
+          <span>⏰ ${t.deadline}</span>
+        </div>
+        <button class="apply-btn" onclick="openApply('${t.title}')">Apply</button>
+      </div>
+    </div>
+  `).join('');
+};
+
+renderTasks();
+
+/* ================= AUTH FUNCTIONS ================= */
+
+// SIGNUP
+window.submitSignup = async function () {
+  const email = document.querySelector("#modal-signup input[type='email']").value;
+  const password = document.querySelector("#modal-signup input[type='password']").value;
+
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    closeModal('signup');
+    showToast("Account created!");
+  } catch (e) {
+    showToast(e.message);
+  }
+};
+
+// LOGIN
+window.submitLogin = async function () {
+  const email = document.querySelector("#modal-login input[type='email']").value;
+  const password = document.querySelector("#modal-login input[type='password']").value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    closeModal('login');
+    showToast("Logged in!");
+  } catch (e) {
+    showToast(e.message);
+  }
+};
+
+// LOGOUT
+window.logout = async function () {
+  await signOut(auth);
+  showToast("Logged out!");
+};
+
+/* ================= UI AUTH STATE ================= */
+onAuthStateChanged(auth, (user) => {
+  const nav = document.querySelector(".nav-cta");
+
+  if (user) {
+    nav.innerHTML = `
+      <span style="color:var(--text-muted);font-size:13px">
+        ${user.email}
+      </span>
+      <button class="btn btn-ghost" onclick="logout()">Logout</button>
+    `;
+  } else {
+    nav.innerHTML = `
+      <button class="btn btn-ghost" onclick="openModal('login')">Log in</button>
+      <button class="btn btn-primary" onclick="openModal('signup')">Get started</button>
+    `;
+  }
+});
+
+/* ================= EXISTING FUNCTIONS (KEEP) ================= */
+window.openModal = function(name) {
+  document.getElementById("modal-" + name).classList.add("open");
+  document.body.style.overflow = "hidden";
+};
+
+window.closeModal = function(name) {
+  document.getElementById("modal-" + name).classList.remove("open");
+  document.body.style.overflow = "";
+};
+
+window.openApply = function(name) {
+  document.getElementById("applyTaskName").textContent = "📋 " + name;
+  openModal("apply");
+};
+
+window.showToast = function(msg) {
+  const toast = document.getElementById("toast");
+  document.getElementById("toastMsg").textContent = msg;
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 3000);
+};
+
+</script>
 </script>
 </body>
    <h2>Login / Signup</h2>
