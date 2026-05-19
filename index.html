@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <!-- Google Sign-In -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Stripe -->
+<script src="https://js.stripe.com/v3/"></script>
 <style>
   :root {
     --bg: #0f0f0f;
@@ -94,6 +96,10 @@
   .btn-lg {
     padding: 15px 32px;
     font-size: 16px;
+  }
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   /* HERO */
   .hero {
@@ -412,17 +418,6 @@
     font-weight: 700;
     font-size: 18px;
   }
-  .fee-badge {
-    display: inline-flex;
-    background: rgba(200,240,61,0.1);
-    border: 1px solid rgba(200,240,61,0.25);
-    color: var(--accent);
-    border-radius: 8px;
-    padding: 4px 10px;
-    font-size: 12px;
-    font-weight: 600;
-    margin-left: 8px;
-  }
   /* PRICING */
   .pricing-grid {
     display: grid;
@@ -574,6 +569,11 @@
     border-color: var(--accent);
   }
   .form-group select option { background: var(--surface); }
+  .form-error {
+    font-size: 11px;
+    color: #ff6b6b;
+    margin-top: 4px;
+  }
   .fee-note {
     font-size: 12px;
     color: var(--text-dim);
@@ -677,6 +677,7 @@
     text-decoration: none;
     font-size: 13px;
     transition: color 0.2s;
+    cursor: pointer;
   }
   .footer-links a:hover { color: var(--text); }
   .footer-copy {
@@ -746,11 +747,11 @@
   </div>
   <div class="hero-stats">
     <div class="stat">
-      <div class="stat-num">12k+</div>
+      <div class="stat-num" id="stat-tasks">0+</div>
       <div class="stat-label">Tasks completed</div>
     </div>
     <div class="stat">
-      <div class="stat-num">$340k</div>
+      <div class="stat-num" id="stat-paid">$0</div>
       <div class="stat-label">Paid to workers</div>
     </div>
     <div class="stat">
@@ -895,11 +896,11 @@
 <footer>
   <div class="footer-logo">Task<span>Drop</span></div>
   <ul class="footer-links">
-    <li><a href="#">About</a></li>
-    <li><a href="#">How it works</a></li>
-    <li><a href="#">Terms</a></li>
-    <li><a href="#">Privacy</a></li>
-    <li><a href="#">Contact</a></li>
+    <li><a href="#" onclick="showInfo('about')">About</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#" onclick="showInfo('terms')">Terms</a></li>
+    <li><a href="#" onclick="showInfo('privacy')">Privacy</a></li>
+    <li><a href="#" onclick="showInfo('contact')">Contact</a></li>
   </ul>
   <div class="footer-copy">© 2026 TaskDrop. All rights reserved.</div>
 </footer>
@@ -913,46 +914,55 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('post')">✕</button>
     <h3>Post a new task</h3>
-    <div class="form-group">
-      <label>Task title</label>
-      <input type="text" placeholder="e.g. Design a logo for my café">
-    </div>
-    <div class="form-group">
-      <label>Category</label>
-      <select>
-        <option>Design</option>
-        <option>Tech & Dev</option>
-        <option>Writing</option>
-        <option>Video & Photo</option>
-        <option>Marketing</option>
-        <option>Other</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Description</label>
-      <textarea rows="3" placeholder="Describe exactly what you need..."></textarea>
-    </div>
-    <div class="form-group">
-      <label>Budget (USD)</label>
-      <input type="number" placeholder="50">
-    </div>
-    <div class="form-group">
-      <label>Deadline</label>
-      <input type="date">
-    </div>
-    <div class="fee-note">
-      💡 TaskDrop takes a <strong>10% fee</strong> only when the task is successfully completed. You pay nothing upfront.
-    </div>
-    <div style="margin-bottom:16px;">
-      <label style="font-size:13px;color:var(--text-muted);display:block;margin-bottom:10px;">Payment method</label>
-      <div class="payment-methods">
-        <div class="pay-method selected" onclick="selectPay(this)"><div class="pay-icon">💳</div>Stripe</div>
-        <div class="pay-method" onclick="selectPay(this)"><div class="pay-icon">🟢</div>eSewa</div>
-        <div class="pay-method" onclick="selectPay(this)"><div class="pay-icon">🔵</div>Khalti</div>
-        <div class="pay-method" onclick="selectPay(this)"><div class="pay-icon">🏦</div>Bank</div>
+    <form id="postForm" onsubmit="submitPost(event)">
+      <div class="form-group">
+        <label>Task title *</label>
+        <input type="text" id="post-title" placeholder="e.g. Design a logo for my café" required>
+        <div class="form-error" id="post-title-error"></div>
       </div>
-    </div>
-    <button class="btn btn-primary" style="width:100%;padding:14px" onclick="submitPost()">Post task & escrow funds</button>
+      <div class="form-group">
+        <label>Category *</label>
+        <select id="post-category" required>
+          <option value="">Select a category</option>
+          <option value="design">Design</option>
+          <option value="tech">Tech & Dev</option>
+          <option value="writing">Writing</option>
+          <option value="video">Video & Photo</option>
+          <option value="marketing">Marketing</option>
+          <option value="other">Other</option>
+        </select>
+        <div class="form-error" id="post-category-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Description *</label>
+        <textarea rows="3" id="post-desc" placeholder="Describe exactly what you need..." required></textarea>
+        <div class="form-error" id="post-desc-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Budget (USD) *</label>
+        <input type="number" id="post-budget" placeholder="50" min="5" max="10000" required>
+        <div class="form-error" id="post-budget-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Deadline *</label>
+        <input type="date" id="post-deadline" required>
+        <div class="form-error" id="post-deadline-error"></div>
+      </div>
+      <div class="fee-note">
+        💡 TaskDrop takes a <strong>10% fee</strong> only when the task is successfully completed. You pay nothing upfront.
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:13px;color:var(--text-muted);display:block;margin-bottom:10px;">Payment method *</label>
+        <div class="payment-methods">
+          <div class="pay-method selected" data-method="stripe" onclick="selectPay(this)"><div class="pay-icon">💳</div>Stripe</div>
+          <div class="pay-method" data-method="esewa" onclick="selectPay(this)"><div class="pay-icon">🟢</div>eSewa</div>
+          <div class="pay-method" data-method="khalti" onclick="selectPay(this)"><div class="pay-icon">🔵</div>Khalti</div>
+          <div class="pay-method" data-method="bank" onclick="selectPay(this)"><div class="pay-icon">🏦</div>Bank</div>
+        </div>
+        <input type="hidden" id="post-payment" value="stripe">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:14px" id="post-btn">Post task & escrow funds</button>
+    </form>
   </div>
 </div>
 <!-- MODAL: SIGNUP -->
@@ -960,7 +970,7 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('signup')">✕</button>
     <h3>Create your account</h3>
-    <button class="google-login-btn" onclick="loginWithGoogle()">
+    <button type="button" class="google-login-btn" onclick="loginWithGoogle()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -970,27 +980,34 @@
       Sign up with Google
     </button>
     <div class="divider">or</div>
-    <div class="form-group">
-      <label>Full name</label>
-      <input type="text" placeholder="Your name">
-    </div>
-    <div class="form-group">
-      <label>Email</label>
-      <input type="email" placeholder="you@email.com">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" placeholder="Min. 8 characters">
-    </div>
-    <div class="form-group">
-      <label>I want to…</label>
-      <select>
-        <option>Post tasks and hire doers</option>
-        <option>Complete tasks and earn money</option>
-        <option>Both</option>
-      </select>
-    </div>
-    <button class="btn btn-primary" style="width:100%;padding:14px;margin-bottom:12px" onclick="submitSignup()">Create account</button>
+    <form id="signupForm" onsubmit="submitSignup(event)">
+      <div class="form-group">
+        <label>Full name *</label>
+        <input type="text" id="signup-name" placeholder="Your name" required>
+        <div class="form-error" id="signup-name-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" id="signup-email" placeholder="you@email.com" required>
+        <div class="form-error" id="signup-email-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Password *</label>
+        <input type="password" id="signup-password" placeholder="Min. 8 characters" required>
+        <div class="form-error" id="signup-password-error"></div>
+      </div>
+      <div class="form-group">
+        <label>I want to… *</label>
+        <select id="signup-role" required>
+          <option value="">Select an option</option>
+          <option value="poster">Post tasks and hire doers</option>
+          <option value="doer">Complete tasks and earn money</option>
+          <option value="both">Both</option>
+        </select>
+        <div class="form-error" id="signup-role-error"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:14px;margin-bottom:12px" id="signup-btn">Create account</button>
+    </form>
     <div style="text-align:center;font-size:13px;color:var(--text-dim)">Already have an account? <a href="#" style="color:var(--accent)" onclick="switchModal('signup','login')">Log in</a></div>
   </div>
 </div>
@@ -999,7 +1016,7 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('login')">✕</button>
     <h3>Welcome back</h3>
-    <button class="google-login-btn" onclick="loginWithGoogle()">
+    <button type="button" class="google-login-btn" onclick="loginWithGoogle()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
         <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -1009,15 +1026,19 @@
       Sign in with Google
     </button>
     <div class="divider">or</div>
-    <div class="form-group">
-      <label>Email</label>
-      <input type="email" placeholder="you@email.com">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" placeholder="Your password">
-    </div>
-    <button class="btn btn-primary" style="width:100%;padding:14px;margin-bottom:12px" onclick="submitLogin()">Log in</button>
+    <form id="loginForm" onsubmit="submitLogin(event)">
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" id="login-email" placeholder="you@email.com" required>
+        <div class="form-error" id="login-email-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Password *</label>
+        <input type="password" id="login-password" placeholder="Your password" required>
+        <div class="form-error" id="login-password-error"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:14px;margin-bottom:12px" id="login-btn">Log in</button>
+    </form>
     <div style="text-align:center;font-size:13px;color:var(--text-dim)">No account? <a href="#" style="color:var(--accent)" onclick="switchModal('login','signup')">Sign up free</a></div>
   </div>
 </div>
@@ -1027,76 +1048,84 @@
     <button class="modal-close" onclick="closeModal('apply')">✕</button>
     <h3>Apply for this task</h3>
     <div id="applyTaskName" style="background:var(--surface2);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:14px;color:var(--text-muted);"></div>
-    <div class="form-group">
-      <label>Your pitch</label>
-      <textarea rows="4" placeholder="Why are you the best person for this? Be specific and confident."></textarea>
-    </div>
-    <div class="form-group">
-      <label>Your offer (USD)</label>
-      <input type="number" placeholder="Your price for the task">
-    </div>
-    <div class="form-group">
-      <label>Estimated delivery</label>
-      <input type="text" placeholder="e.g. 2 days">
-    </div>
-    <div class="fee-note">
-      You'll receive <strong>90%</strong> of the agreed amount after task approval. TaskDrop takes a 10% fee to keep the platform running.
-    </div>
-    <button class="btn btn-primary" style="width:100%;padding:14px" onclick="submitApply()">Submit application</button>
+    <form id="applyForm" onsubmit="submitApply(event)">
+      <div class="form-group">
+        <label>Your pitch *</label>
+        <textarea rows="4" id="apply-pitch" placeholder="Why are you the best person for this? Be specific and confident." required></textarea>
+        <div class="form-error" id="apply-pitch-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Your offer (USD) *</label>
+        <input type="number" id="apply-offer" placeholder="Your price for the task" min="1" required>
+        <div class="form-error" id="apply-offer-error"></div>
+      </div>
+      <div class="form-group">
+        <label>Estimated delivery *</label>
+        <input type="text" id="apply-delivery" placeholder="e.g. 2 days" required>
+        <div class="form-error" id="apply-delivery-error"></div>
+      </div>
+      <div class="fee-note">
+        You'll receive <strong>90%</strong> of the agreed amount after task approval. TaskDrop takes a 10% fee to keep the platform running.
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:14px" id="apply-btn">Submit application</button>
+    </form>
   </div>
 </div>
 
 <script>
-  // TASKS DATA
-  const tasks = [
-    { id:1, category:'design', catLabel:'Design', title:'Logo for a local tea shop', desc:'Need a simple, warm logo for a new tea brand. Should feel handmade and cozy.', budget:45, applicants:3, deadline:'2 days', tag:'design' },
-    { id:2, category:'tech', catLabel:'Tech', title:'Fix bugs on my WordPress site', desc:'My contact form is broken and some pages are slow. Need a quick fix.', budget:80, applicants:7, deadline:'1 day', tag:'tech' },
-    { id:3, category:'writing', catLabel:'Writing', title:'Write 5 Instagram captions', desc:'Fashion brand. Need punchy, engaging captions with hashtags. English only.', budget:25, applicants:12, deadline:'3 days', tag:'writing' },
-    { id:4, category:'design', catLabel:'Design', title:'Canva pitch deck (10 slides)', desc:'Startup deck for investors. I have the content, need it to look professional.', budget:120, applicants:5, deadline:'4 days', tag:'design' },
-    { id:5, category:'tech', catLabel:'Tech', title:'Build a simple landing page', desc:'HTML/CSS only. No frameworks needed. Clean, modern design. I provide assets.', budget:150, applicants:9, deadline:'5 days', tag:'tech' },
-    { id:6, category:'other', catLabel:'Other', title:'Transcribe a 30min audio file', desc:'Clear English recording, just needs clean text output in a Google Doc.', budget:20, applicants:18, deadline:'1 day', tag:'other' },
-  ];
+  // TASKS DATA (from Firestore)
+  let tasksData = [];
   let currentFilter = 'all';
+  let currentTaskForApply = null;
+  let selectedPaymentMethod = 'stripe';
+
   function renderTasks(filter) {
     const grid = document.getElementById('tasksGrid');
-    const filtered = filter === 'all' ? tasks : tasks.filter(t => t.category === filter);
+    const filtered = filter === 'all' ? tasksData : tasksData.filter(t => t.category === filter);
     grid.innerHTML = filtered.map(t => `
       <div class="task-card">
         <div class="task-top">
-          <span class="task-category">${t.catLabel}</span>
+          <span class="task-category">${t.category}</span>
           <span class="task-budget">$${t.budget}</span>
         </div>
         <div class="task-title">${t.title}</div>
         <div class="task-desc">${t.desc}</div>
         <div class="task-footer">
           <div class="task-meta">
-            <span>🙋 ${t.applicants} applied</span>
+            <span>🙋 ${t.applicants || 0} applied</span>
             <span>⏰ ${t.deadline}</span>
           </div>
-          <button class="apply-btn" onclick="openApply('${t.title}')">Apply</button>
+          <button class="apply-btn" onclick="openApply('${t.id}', '${t.title}')">Apply</button>
         </div>
       </div>
     `).join('');
   }
+
   renderTasks('all');
+
   function filterTasks(el, filter) {
     document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
     el.classList.add('active');
+    currentFilter = filter;
     renderTasks(filter);
   }
+
   // MODALS
   function openModal(name) {
     document.getElementById('modal-' + name).classList.add('open');
     document.body.style.overflow = 'hidden';
   }
+
   function closeModal(name) {
     document.getElementById('modal-' + name).classList.remove('open');
     document.body.style.overflow = '';
   }
+
   function switchModal(from, to) {
     closeModal(from);
     setTimeout(() => openModal(to), 100);
   }
+
   // Close on overlay click
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', function(e) {
@@ -1106,40 +1135,37 @@
       }
     });
   });
-  function openApply(taskName) {
+
+  function openApply(taskId, taskName) {
+    const task = tasksData.find(t => t.id === taskId);
+    currentTaskForApply = task;
     document.getElementById('applyTaskName').textContent = '📋 ' + taskName;
     openModal('apply');
   }
+
   function selectPay(el) {
     document.querySelectorAll('.pay-method').forEach(m => m.classList.remove('selected'));
     el.classList.add('selected');
+    selectedPaymentMethod = el.dataset.method;
+    document.getElementById('post-payment').value = selectedPaymentMethod;
   }
+
   // TOAST
-  function showToast(msg) {
+  function showToast(msg, icon = '✅') {
     const toast = document.getElementById('toast');
     document.getElementById('toastMsg').textContent = msg;
+    document.querySelector('.toast-icon').textContent = icon;
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 3500);
   }
-  // SUBMIT HANDLERS
-  function submitPost() {
-    closeModal('post');
-    showToast('Task posted! Applicants will start applying soon.');
-  }
-  function submitSignup() {
-    closeModal('signup');
-    showToast('Account created! Welcome to TaskDrop 🎉');
-  }
-  function submitLogin() {
-    closeModal('login');
-    showToast('Logged in successfully!');
-  }
-  function submitApply() {
-    closeModal('apply');
-    showToast('Application sent! The poster will review it shortly.');
-  }
+
   function scrollTo(id) {
-    document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function showInfo(section) {
+    alert(`${section.toUpperCase()} section coming soon!`);
   }
 </script>
 
@@ -1152,8 +1178,22 @@ import {
   signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  getDoc,
+  onSnapshot,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= FIREBASE CONFIG ================= */
 const firebaseConfig = {
@@ -1167,55 +1207,138 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
+
 console.log("Firebase connected successfully");
 
-/* ================= TOAST ================= */
-function showToastMsg(msg) {
-  const toast = document.getElementById("toast");
-  document.getElementById("toastMsg").textContent = msg;
-  toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 3000);
-}
-window.showToastMsg = showToastMsg;
+let currentUser = null;
+
+/* ================= FORM VALIDATION ================= */
+window.validateEmail = (email) => {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
+};
+
+window.validatePassword = (password) => {
+  return password.length >= 8;
+};
+
+window.validateBudget = (budget) => {
+  return budget >= 5 && budget <= 10000;
+};
+
+window.clearFormErrors = (formName) => {
+  document.querySelectorAll(`#${formName} .form-error`).forEach(el => el.textContent = '');
+};
+
+window.showFormError = (fieldId, message) => {
+  const errorEl = document.getElementById(fieldId + '-error');
+  if (errorEl) errorEl.textContent = message;
+};
 
 /* ================= EMAIL SIGNUP ================= */
-window.submitSignup = async function () {
-  const inputs = document.querySelectorAll("#modal-signup input[type='email'], #modal-signup input[type='password']");
-  const email = inputs[0].value;
-  const password = inputs[1].value;
-  
-  if (!email || !password) {
-    showToastMsg("Please fill in all fields");
+window.submitSignup = async function (event) {
+  event.preventDefault();
+  clearFormErrors('signupForm');
+  const btn = document.getElementById('signup-btn');
+  btn.disabled = true;
+
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const role = document.getElementById('signup-role').value;
+
+  let hasError = false;
+
+  if (!name || name.length < 2) {
+    showFormError('signup-name', 'Name must be at least 2 characters');
+    hasError = true;
+  }
+  if (!validateEmail(email)) {
+    showFormError('signup-email', 'Please enter a valid email');
+    hasError = true;
+  }
+  if (!validatePassword(password)) {
+    showFormError('signup-password', 'Password must be at least 8 characters');
+    hasError = true;
+  }
+  if (!role) {
+    showFormError('signup-role', 'Please select a role');
+    hasError = true;
+  }
+
+  if (hasError) {
+    btn.disabled = false;
     return;
   }
-  
+
   try {
-    await createUserWithEmailAndPassword(auth, email, password);
-    closeModal("signup");
-    showToastMsg("Account created! Welcome to TaskDrop 🎉");
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(userCredential.user, { displayName: name });
+    
+    // Save user profile to Firestore
+    await addDoc(collection(db, 'users'), {
+      uid: userCredential.user.uid,
+      name: name,
+      email: email,
+      role: role,
+      createdAt: new Date(),
+      rating: 0,
+      tasksCompleted: 0
+    });
+
+    closeModal('signup');
+    showToast('Account created! Welcome to TaskDrop 🎉');
+    document.getElementById('signupForm').reset();
   } catch (e) {
-    showToastMsg("Error: " + e.message);
+    if (e.code === 'auth/email-already-in-use') {
+      showFormError('signup-email', 'Email already in use');
+    } else {
+      showToast('Error: ' + e.message, '❌');
+    }
   }
+  btn.disabled = false;
 };
 
 /* ================= EMAIL LOGIN ================= */
-window.submitLogin = async function () {
-  const inputs = document.querySelectorAll("#modal-login input[type='email'], #modal-login input[type='password']");
-  const email = inputs[0].value;
-  const password = inputs[1].value;
-  
-  if (!email || !password) {
-    showToastMsg("Please fill in all fields");
+window.submitLogin = async function (event) {
+  event.preventDefault();
+  clearFormErrors('loginForm');
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  let hasError = false;
+
+  if (!validateEmail(email)) {
+    showFormError('login-email', 'Please enter a valid email');
+    hasError = true;
+  }
+  if (!password) {
+    showFormError('login-password', 'Password is required');
+    hasError = true;
+  }
+
+  if (hasError) {
+    btn.disabled = false;
     return;
   }
-  
+
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    closeModal("login");
-    showToastMsg("Logged in successfully!");
+    closeModal('login');
+    showToast('Logged in successfully!');
+    document.getElementById('loginForm').reset();
   } catch (e) {
-    showToastMsg("Error: " + e.message);
+    if (e.code === 'auth/invalid-credential') {
+      showToast('Invalid email or password', '❌');
+    } else {
+      showToast('Error: ' + e.message, '❌');
+    }
   }
+  btn.disabled = false;
 };
 
 /* ================= GOOGLE LOGIN ================= */
@@ -1223,29 +1346,225 @@ window.loginWithGoogle = async function () {
   const provider = new GoogleAuthProvider();
   try {
     const result = await signInWithPopup(auth, provider);
-    closeModal("login");
-    closeModal("signup");
-    showToastMsg("Welcome, " + (result.user.displayName || "User") + "! 🎉");
+    
+    // Check if user exists in Firestore
+    const q = query(collection(db, 'users'), where('uid', '==', result.user.uid));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      // New user, create profile
+      await addDoc(collection(db, 'users'), {
+        uid: result.user.uid,
+        name: result.user.displayName || 'User',
+        email: result.user.email,
+        role: 'both',
+        createdAt: new Date(),
+        rating: 0,
+        tasksCompleted: 0
+      });
+    }
+
+    closeModal('login');
+    closeModal('signup');
+    showToast('Welcome, ' + (result.user.displayName || 'User') + '! 🎉');
   } catch (e) {
-    if (e.code !== "auth/popup-closed-by-user") {
-      showToastMsg("Error: " + e.message);
+    if (e.code !== 'auth/popup-closed-by-user') {
+      showToast('Error: ' + e.message, '❌');
     }
   }
+};
+
+/* ================= POST TASK ================= */
+window.submitPost = async function (event) {
+  event.preventDefault();
+  clearFormErrors('postForm');
+
+  if (!currentUser) {
+    showToast('Please log in first', '❌');
+    return;
+  }
+
+  const btn = document.getElementById('post-btn');
+  btn.disabled = true;
+
+  const title = document.getElementById('post-title').value.trim();
+  const category = document.getElementById('post-category').value;
+  const desc = document.getElementById('post-desc').value.trim();
+  const budget = parseFloat(document.getElementById('post-budget').value);
+  const deadline = document.getElementById('post-deadline').value;
+  const paymentMethod = document.getElementById('post-payment').value;
+
+  let hasError = false;
+
+  if (!title || title.length < 10) {
+    showFormError('post-title', 'Title must be at least 10 characters');
+    hasError = true;
+  }
+  if (!category) {
+    showFormError('post-category', 'Please select a category');
+    hasError = true;
+  }
+  if (!desc || desc.length < 20) {
+    showFormError('post-desc', 'Description must be at least 20 characters');
+    hasError = true;
+  }
+  if (!validateBudget(budget)) {
+    showFormError('post-budget', 'Budget must be between $5 and $10,000');
+    hasError = true;
+  }
+  if (!deadline) {
+    showFormError('post-deadline', 'Please set a deadline');
+    hasError = true;
+  }
+  const deadlineDate = new Date(deadline);
+  if (deadlineDate <= new Date()) {
+    showFormError('post-deadline', 'Deadline must be in the future');
+    hasError = true;
+  }
+
+  if (hasError) {
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, 'tasks'), {
+      title: title,
+      category: category,
+      description: desc,
+      budget: budget,
+      deadline: new Date(deadline),
+      paymentMethod: paymentMethod,
+      posterUid: currentUser.uid,
+      posterName: currentUser.displayName || 'Anonymous',
+      applicants: 0,
+      status: 'open',
+      createdAt: new Date()
+    });
+
+    closeModal('post');
+    showToast('Task posted! Applicants will start applying soon.');
+    document.getElementById('postForm').reset();
+    // Reset payment method to Stripe
+    document.querySelectorAll('.pay-method').forEach(m => m.classList.remove('selected'));
+    document.querySelector('.pay-method[data-method="stripe"]').classList.add('selected');
+  } catch (e) {
+    showToast('Error posting task: ' + e.message, '❌');
+  }
+  btn.disabled = false;
+};
+
+/* ================= APPLY FOR TASK ================= */
+window.submitApply = async function (event) {
+  event.preventDefault();
+  clearFormErrors('applyForm');
+
+  if (!currentUser) {
+    showToast('Please log in first', '❌');
+    return;
+  }
+
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = true;
+
+  const pitch = document.getElementById('apply-pitch').value.trim();
+  const offer = parseFloat(document.getElementById('apply-offer').value);
+  const delivery = document.getElementById('apply-delivery').value.trim();
+
+  let hasError = false;
+
+  if (!pitch || pitch.length < 20) {
+    showFormError('apply-pitch', 'Pitch must be at least 20 characters');
+    hasError = true;
+  }
+  if (!offer || offer < 1) {
+    showFormError('apply-offer', 'Please enter a valid offer');
+    hasError = true;
+  }
+  if (currentTaskForApply && offer > currentTaskForApply.budget * 1.5) {
+    showFormError('apply-offer', 'Offer is too high compared to budget');
+    hasError = true;
+  }
+  if (!delivery) {
+    showFormError('apply-delivery', 'Please estimate delivery time');
+    hasError = true;
+  }
+
+  if (hasError) {
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, 'applications'), {
+      taskId: currentTaskForApply.id,
+      taskTitle: currentTaskForApply.title,
+      doerUid: currentUser.uid,
+      doerName: currentUser.displayName || 'Anonymous',
+      pitch: pitch,
+      offer: offer,
+      delivery: delivery,
+      status: 'pending',
+      createdAt: new Date()
+    });
+
+    // Increment applicants count
+    const taskRef = doc(db, 'tasks', currentTaskForApply.id);
+    await updateDoc(taskRef, {
+      applicants: (currentTaskForApply.applicants || 0) + 1
+    });
+
+    closeModal('apply');
+    showToast('Application sent! The poster will review it shortly.');
+    document.getElementById('applyForm').reset();
+  } catch (e) {
+    showToast('Error submitting application: ' + e.message, '❌');
+  }
+  btn.disabled = false;
 };
 
 /* ================= LOGOUT ================= */
 window.logout = async function () {
   try {
     await signOut(auth);
-    showToastMsg("Logged out!");
+    showToast('Logged out!');
   } catch (e) {
-    showToastMsg("Error: " + e.message);
+    showToast('Error: ' + e.message, '❌');
   }
 };
 
+/* ================= LOAD TASKS ================= */
+async function loadTasks() {
+  const q = query(collection(db, 'tasks'), where('status', '==', 'open'), orderBy('createdAt', 'desc'));
+  
+  onSnapshot(q, (snapshot) => {
+    window.tasksData = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      deadline: doc.data().deadline?.toDate().toLocaleDateString() || 'No deadline'
+    }));
+    renderTasks('all');
+    updateStats();
+  });
+}
+
+/* ================= UPDATE STATS ================= */
+async function updateStats() {
+  try {
+    const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('status', '==', 'completed')));
+    const totalBudget = tasksSnap.docs.reduce((sum, doc) => sum + (doc.data().budget || 0), 0);
+    
+    document.getElementById('stat-tasks').textContent = tasksSnap.size + '+';
+    document.getElementById('stat-paid').textContent = '$' + totalBudget.toLocaleString();
+  } catch (e) {
+    console.error('Error updating stats:', e);
+  }
+}
+
 /* ================= AUTH STATE ================= */
 onAuthStateChanged(auth, (user) => {
-  const nav = document.querySelector(".nav-cta");
+  currentUser = user;
+  const nav = document.querySelector('.nav-cta');
   if (user) {
     nav.innerHTML = `
       <span style="color:var(--text-muted);font-size:13px;margin-right:8px;">
@@ -1260,6 +1579,9 @@ onAuthStateChanged(auth, (user) => {
     `;
   }
 });
+
+// Load tasks on page load
+loadTasks();
 </script>
 
 </body>
