@@ -1266,6 +1266,24 @@ onAuthStateChanged(auth, (user) => {
 });
 </script>
 </script>
+   <script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEiTHA5rkUCMpDXad6dUvVp2jN4yzbl-4",
+  authDomain: "taskdropv21.firebaseapp.com",
+  projectId: "taskdropv21",
+  storageBucket: "taskdropv21.firebasestorage.app",
+  messagingSenderId: "410635422938",
+  appId: "1:410635422938:web:ca5b371741396786a2a9e3"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+console.log("Firebase connected successfully");
+</script>
 </body>
    <h2>Login / Signup</h2>
 
